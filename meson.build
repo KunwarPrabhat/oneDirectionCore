@@ -1,0 +1,58 @@
+project('oneDirectionCore', ['c', 'cpp'],
+  version : '0.1',
+  default_options : ['warning_level=2', 'cpp_std=gnu++20', 'c_std=gnu11', 'prefer_static=true'])
+
+pw_dep = dependency('libpipewire-0.3')
+
+core_lib = static_library('od_core',
+  sources: [
+    'core/driver/capture_linux.c',
+    'core/dsp/classifier.c',
+    'core/dsp/dsp.c'
+  ],
+  dependencies: [pw_dep]
+)
+
+# Dependencies for Linux UI (GTK)
+gtk_dep = dependency('gtk4', required: false)
+glfw_dep = dependency('glfw3', required: false)
+gl_dep = dependency('gl', required: false)
+
+if not gtk_dep.found()
+    warning('GTK4 not found, UI may fail to build.')
+endif
+
+# Include directories
+inc = include_directories('.', '3rdparty/imgui')
+
+# Dependencies
+thread_dep = dependency('threads')
+
+# Linux UI Application
+executable('ODC-linux',
+  sources: [
+    'ui/linux/main_linux.cpp'
+  ],
+  include_directories: inc,
+  dependencies: [gtk_dep, thread_dep],
+  link_with: [core_lib],
+  link_args: ['-static-libgcc', '-static-libstdc++']
+)
+
+# Linux Standalone Overlay
+executable('ODC-overlay',
+  sources: [
+    'overlay/linux/overlay_standalone.cpp',
+    'overlay/osd_radar.cpp',
+    '3rdparty/imgui/imgui.cpp',
+    '3rdparty/imgui/imgui_draw.cpp',
+    '3rdparty/imgui/imgui_widgets.cpp',
+    '3rdparty/imgui/imgui_tables.cpp',
+    '3rdparty/imgui/imgui_impl_glfw.cpp',
+    '3rdparty/imgui/imgui_impl_opengl3.cpp'
+  ],
+  include_directories: inc,
+  dependencies: [glfw_dep, gl_dep, pw_dep, thread_dep],
+  link_with: [core_lib],
+  link_args: ['-static-libgcc', '-static-libstdc++']
+)
