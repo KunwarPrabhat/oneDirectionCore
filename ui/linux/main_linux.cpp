@@ -370,7 +370,19 @@ static void on_activate(GtkApplication* app, gpointer user_data) {
     gtk_box_append(GTK_BOX(main_box), make_description_label("How many distinct sounds can be shown at once."));
     entity_scale_global = entity_scale;
 
-    
+    gtk_box_append(GTK_BOX(main_box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
+    gtk_box_append(GTK_BOX(main_box), make_section_label("Hardware"));
+
+    GtkWidget *hw_lbl = gtk_label_new("Serial Port (e.g. /dev/ttyUSB0)");
+    gtk_widget_set_halign(hw_lbl, GTK_ALIGN_START);
+    gtk_widget_set_margin_top(hw_lbl, 6);
+    gtk_box_append(GTK_BOX(main_box), hw_lbl);
+
+    hw_port_entry_global = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(hw_port_entry_global), "/dev/ttyACM0");
+    gtk_box_append(GTK_BOX(main_box), hw_port_entry_global);
+    gtk_box_append(GTK_BOX(main_box), make_description_label("Device path for external LED/Haptic hardware."));
+
     gtk_box_append(GTK_BOX(main_box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
 
     

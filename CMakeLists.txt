@@ -25,6 +25,7 @@ add_library(od_core STATIC
     core/driver/capture_windows.c
     core/dsp/classifier.c
     core/dsp/dsp.c
+    hardware/serial_controller.c
 )
 target_include_directories(od_core PUBLIC ${CMAKE_SOURCE_DIR})
 
@@ -46,6 +47,7 @@ target_link_libraries(ODC-windows PRIVATE od_core comctl32)
 
 add_executable(ODC-overlay-win
     overlay/windows/overlay_standalone_win.cpp
+    hardware/serial_controller.c
 )
 target_include_directories(ODC-overlay-win PRIVATE
     ${IMGUI_DIR}

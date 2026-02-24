@@ -8,7 +8,8 @@ core_lib = static_library('od_core',
   sources: [
     'core/driver/capture_linux.c',
     'core/dsp/classifier.c',
-    'core/dsp/dsp.c'
+    'core/dsp/dsp.c',
+    'hardware/serial_controller.c'
   ],
   dependencies: [pw_dep]
 )
@@ -44,6 +45,7 @@ executable('ODC-overlay',
   sources: [
     'overlay/linux/overlay_standalone.cpp',
     'overlay/osd_radar.cpp',
+    'hardware/serial_controller.c',
     '3rdparty/imgui/imgui.cpp',
     '3rdparty/imgui/imgui_draw.cpp',
     '3rdparty/imgui/imgui_widgets.cpp',
