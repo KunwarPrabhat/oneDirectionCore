@@ -2,17 +2,28 @@ project('oneDirectionCore', ['c', 'cpp'],
   version : '0.1',
   default_options : ['warning_level=2', 'cpp_std=gnu++20', 'c_std=gnu11', 'prefer_static=true'])
 
-pw_dep = dependency('libpipewire-0.3')
-
-core_lib = static_library('od_core',
-  sources: [
-    'core/driver/capture_linux.c',
-    'core/dsp/classifier.c',
-    'core/dsp/dsp.c',
-    'hardware/serial_controller.c'
-  ],
-  dependencies: [pw_dep]
-)
+if host_machine.system() == 'windows'
+  core_lib = shared_library('od_core',
+    sources: [
+      'core/driver/capture_windows_ext.c',
+      'core/dsp/classifier_windows.c',
+      'core/dsp/dsp_windows.c',
+      'hardware/serial_controller_windows.c'
+    ],
+    dependencies: [],
+    name_prefix: ''
+  )
+else
+  pw_dep = dependency('libpipewire-0.3')
+  core_lib = static_library('od_core',
+    sources: [
+      'core/driver/capture_linux.c',
+      'core/dsp/classifier.c',
+      'core/dsp/dsp.c',
+      'hardware/serial_controller.c'
+    ],
+    dependencies: [pw_dep]
+  )
 
 # Dependencies for Linux UI (GTK)
 gtk_dep = dependency('gtk4', required: false)
@@ -40,21 +51,22 @@ executable('ODC-linux',
   link_args: ['-static-libgcc', '-static-libstdc++']
 )
 
-# Linux Standalone Overlay
-executable('ODC-overlay',
-  sources: [
-    'overlay/linux/overlay_standalone.cpp',
-    'overlay/osd_radar.cpp',
-    'hardware/serial_controller.c',
-    '3rdparty/imgui/imgui.cpp',
-    '3rdparty/imgui/imgui_draw.cpp',
-    '3rdparty/imgui/imgui_widgets.cpp',
-    '3rdparty/imgui/imgui_tables.cpp',
-    '3rdparty/imgui/imgui_impl_glfw.cpp',
-    '3rdparty/imgui/imgui_impl_opengl3.cpp'
-  ],
-  include_directories: inc,
-  dependencies: [glfw_dep, gl_dep, pw_dep, thread_dep],
-  link_with: [core_lib],
-  link_args: ['-static-libgcc', '-static-libstdc++']
-)
+  # Linux Standalone Overlay
+  executable('ODC-overlay',
+    sources: [
+      'overlay/linux/overlay_standalone.cpp',
+      'overlay/osd_radar.cpp',
+      'hardware/serial_controller.c',
+      '3rdparty/imgui/imgui.cpp',
+      '3rdparty/imgui/imgui_draw.cpp',
+      '3rdparty/imgui/imgui_widgets.cpp',
+      '3rdparty/imgui/imgui_tables.cpp',
+      '3rdparty/imgui/imgui_impl_glfw.cpp',
+      '3rdparty/imgui/imgui_impl_opengl3.cpp'
+    ],
+    include_directories: inc,
+    dependencies: [glfw_dep, gl_dep, pw_dep, thread_dep],
+    link_with: [core_lib],
+    link_args: ['-static-libgcc', '-static-libstdc++']
+  )
+endif

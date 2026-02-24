@@ -25,10 +25,12 @@ int main(int argc, char** argv) {
     bool fullscreen_mode = false;
     int osd_position = 0;
     float osd_opacity = 0.8f;
+    float radar_opacity = 0.8f;
     float dot_opacity = 1.0f;
     float sensitivity = 0.7f;
     float separation = 30.0f;
     float range_scale = 1.0f;
+    float radar_size = 280.0f;
     int poll_rate = 60;
     int max_entities = 4;
     int channels = 2;
@@ -38,10 +40,12 @@ int main(int argc, char** argv) {
         std::string arg(argv[i]);
         if (arg == "--fullscreen") fullscreen_mode = true;
         if (arg.rfind("--pos=", 0) == 0) osd_position = std::atoi(argv[i] + 5);
-        if (arg.rfind("--opacity=", 0) == 0) osd_opacity = std::atoi(argv[i] + 10) / 100.0f;
-        if (arg.rfind("--dot-opacity=", 0) == 0) dot_opacity = std::atoi(argv[i] + 14) / 100.0f;
+        if (arg.rfind("--opacity=", 0) == 0) osd_opacity = std::atof(argv[i] + 10) / 100.0f;
+        if (arg.rfind("--radar-opacity=", 0) == 0) radar_opacity = std::atof(argv[i] + 16) / 100.0f;
+        if (arg.rfind("--dot-opacity=", 0) == 0) dot_opacity = std::atof(argv[i] + 14) / 100.0f;
+        if (arg.rfind("--radar-size=", 0) == 0) radar_size = std::atof(argv[i] + 13);
         if (arg.rfind("--max-entities=", 0) == 0) max_entities = std::atoi(argv[i] + 15);
-        if (arg.rfind("--sensitivity=", 0) == 0) sensitivity = std::atoi(argv[i] + 14) / 100.0f;
+        if (arg.rfind("--sensitivity=", 0) == 0) sensitivity = std::atof(argv[i] + 14) / 100.0f;
         if (arg.rfind("--separation=", 0) == 0) {
             float val = std::atof(argv[i] + 13);
             separation = 60.0f - (val * 0.55f); 
@@ -121,7 +125,8 @@ int main(int argc, char** argv) {
         ImGui::NewFrame();
 
         
-        DrawRadarHUD(&dsp_data, fullscreen_mode, osd_opacity, dot_opacity, max_entities, range_scale, osd_position);
+        
+        DrawRadarHUD(&dsp_data, fullscreen_mode, osd_opacity, radar_opacity, dot_opacity, max_entities, range_scale, osd_position, radar_size);
 
         ImGui::Render();
         int display_w, display_h;

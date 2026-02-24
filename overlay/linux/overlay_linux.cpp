@@ -62,7 +62,8 @@ void OD_Overlay_Linux_Tick() {
     ImGui::NewFrame();
 
     
-    DrawRadarHUD(&dsp_data, false, 0.8f); 
+    
+    DrawRadarHUD(&dsp_data, false, 0.8f, 0.8f, 1.0f, 4, 1.0f, 0, 280.0f); 
 
     ImGui::Render();
     int display_w, display_h;

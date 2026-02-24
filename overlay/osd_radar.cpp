@@ -45,7 +45,7 @@ static void DrawSoundIcon(ImDrawList* dl, ImVec2 pos, float size, int type, ImU3
 }
 
 
-void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity, float dot_opacity, int max_entities, float range, int position) {
+void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity, float radar_opacity, float dot_opacity, int max_entities, float range, int position, float radar_size) {
     ImGuiIO& io = ImGui::GetIO();
     float dt = io.DeltaTime;
     
@@ -102,11 +102,14 @@ void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity,
         float radius = io.DisplaySize.y * 0.45f;
 
         
+        int rh_alpha = (int)(alpha * radar_opacity);
+
+        
         float ch = 8.0f;
         dl->AddLine(ImVec2(center.x - ch, center.y), ImVec2(center.x + ch, center.y), 
-                    IM_COL32(255, 255, 255, (int)(alpha * 0.15f)), 1.0f);
+                    IM_COL32(255, 255, 255, (int)(rh_alpha * 0.15f)), 1.0f);
         dl->AddLine(ImVec2(center.x, center.y - ch), ImVec2(center.x, center.y + ch), 
-                    IM_COL32(255, 255, 255, (int)(alpha * 0.15f)), 1.0f);
+                    IM_COL32(255, 255, 255, (int)(rh_alpha * 0.15f)), 1.0f);
 
         
         for (int i = 0; i < max_entities; i++) {
@@ -131,7 +134,6 @@ void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity,
         ImGui::End();
     } else {
         
-        float radar_size = 280.0f;
         float half = radar_size * 0.5f;
         float margin = 20.0f;
 
@@ -158,33 +160,33 @@ void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity,
         float radius = half - 15.0f;
 
         
-        dl->AddCircleFilled(center, radius + 4, IM_COL32(10, 15, 25, (int)(alpha * 0.6f)), 64);
+        dl->AddCircleFilled(center, radius + 4, IM_COL32(10, 15, 25, (int)(alpha * radar_opacity * 0.6f)), 64);
 
         
-        dl->AddCircle(center, radius, IM_COL32(0, 220, 180, alpha), 64, 2.0f);
-        dl->AddCircle(center, radius * 0.66f, IM_COL32(0, 220, 180, (int)(alpha * 0.2f)), 48, 1.0f);
-        dl->AddCircle(center, radius * 0.33f, IM_COL32(0, 220, 180, (int)(alpha * 0.2f)), 32, 1.0f);
+        dl->AddCircle(center, radius, IM_COL32(0, 220, 180, (int)(alpha * radar_opacity)), 64, 2.0f);
+        dl->AddCircle(center, radius * 0.66f, IM_COL32(0, 220, 180, (int)(alpha * radar_opacity * 0.2f)), 48, 1.0f);
+        dl->AddCircle(center, radius * 0.33f, IM_COL32(0, 220, 180, (int)(alpha * radar_opacity * 0.2f)), 32, 1.0f);
 
         
         dl->AddLine(ImVec2(center.x - radius, center.y), ImVec2(center.x + radius, center.y), 
-                    IM_COL32(0, 220, 180, (int)(alpha * 0.15f)), 1.0f);
+                    IM_COL32(0, 220, 180, (int)(alpha * radar_opacity * 0.15f)), 1.0f);
         dl->AddLine(ImVec2(center.x, center.y - radius), ImVec2(center.x, center.y + radius), 
-                    IM_COL32(0, 220, 180, (int)(alpha * 0.15f)), 1.0f);
+                    IM_COL32(0, 220, 180, (int)(alpha * radar_opacity * 0.15f)), 1.0f);
 
         
-        dl->AddCircleFilled(center, 3.0f, IM_COL32(0, 220, 180, alpha));
+        dl->AddCircleFilled(center, 3.0f, IM_COL32(0, 220, 180, (int)(alpha * radar_opacity)));
 
         
         sweep_angle += dt * 90.0f;
         if (sweep_angle >= 360.0f) sweep_angle -= 360.0f;
         float sr = (sweep_angle - 90.0f) * (3.14159f / 180.0f);
         ImVec2 sweep_end = ImVec2(center.x + cosf(sr) * radius, center.y + sinf(sr) * radius);
-        dl->AddLine(center, sweep_end, IM_COL32(0, 220, 180, (int)(alpha * 0.3f)), 1.0f);
+        dl->AddLine(center, sweep_end, IM_COL32(0, 220, 180, (int)(alpha * radar_opacity * 0.3f)), 1.0f);
 
         
-        dl->AddText(ImVec2(center.x - 3, center.y - radius - 14), IM_COL32(255, 255, 255, (int)(alpha * 0.5f)), "F");
-        dl->AddText(ImVec2(center.x + radius + 4, center.y - 5), IM_COL32(255, 255, 255, (int)(alpha * 0.5f)), "R");
-        dl->AddText(ImVec2(center.x - radius - 12, center.y - 5), IM_COL32(255, 255, 255, (int)(alpha * 0.5f)), "L");
+        dl->AddText(ImVec2(center.x - 3, center.y - radius - 14), IM_COL32(255, 255, 255, (int)(alpha * radar_opacity * 0.5f)), "F");
+        dl->AddText(ImVec2(center.x + radius + 4, center.y - 5), IM_COL32(255, 255, 255, (int)(alpha * radar_opacity * 0.5f)), "R");
+        dl->AddText(ImVec2(center.x - radius - 12, center.y - 5), IM_COL32(255, 255, 255, (int)(alpha * radar_opacity * 0.5f)), "L");
 
         
         for (int i = 0; i < max_entities; i++) {

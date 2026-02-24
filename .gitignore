@@ -1,3 +1,36 @@
-plan.md
+# Build Artifacts
 build/
 builddir/
+bin/
+obj/
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.pdb
+
+# Meson/Ninja
+.mesonpy/
+meson-logs/
+meson-private/
+meson-info/
+
+# .NET / VS / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+ui/dotnet/*/bin/
+ui/dotnet/*/obj/
+
+# System / IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+

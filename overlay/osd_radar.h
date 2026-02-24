@@ -4,6 +4,6 @@
 #include "../core/dsp/dsp.h"
 
 
-void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity, float dot_opacity, int max_entities, float range, int position);
+void DrawRadarHUD(SpatialData_t* data, bool is_fullscreen, float global_opacity, float radar_opacity, float dot_opacity, int max_entities, float range, int position, float radar_size);
 
 #endif 
