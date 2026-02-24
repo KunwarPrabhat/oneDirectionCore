@@ -6,8 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <PublishSingleFile>false</PublishSingleFile>
-    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,22 +20,12 @@
   <ItemGroup>
     <None Include="od_core.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInSingleFile>false</IncludeInSingleFile>
+      <IncludeInSingleFile>true</IncludeInSingleFile>
     </None>
-
-    <None Include="libgcc_s_seh-1.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInSingleFile>false</IncludeInSingleFile>
-    </None>
-    <None Include="libstdc++-6.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInSingleFile>false</IncludeInSingleFile>
-    </None>
-    <None Include="libwinpthread-1.dll">
+    <None Include="ODC-overlay-win.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInSingleFile>true</IncludeInSingleFile>
     </None>
-
   </ItemGroup>
 
 </Project>
