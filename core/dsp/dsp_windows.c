@@ -8,10 +8,7 @@
 
 #define PI 3.14159265358979323846f
 
-typedef struct {
-    float x;
-    float y;
-} Vector2D;
+/* ──────────────────── DFT helpers ──────────────────── */
 
 static float dft_bin_energy(const float* samples, uint32_t n, uint32_t bin, uint32_t total_bins) {
     float real = 0.0f, imag = 0.0f;
@@ -24,59 +21,115 @@ static float dft_bin_energy(const float* samples, uint32_t n, uint32_t bin, uint
     return (real * real + imag * imag) / (float)n;
 }
 
+static float channel_energy(const float* interleaved, uint32_t num_frames, uint32_t total_channels, uint32_t ch_idx) {
+    float e = 0.0f;
+    for (uint32_t i = 0; i < num_frames; i++) {
+        float s = interleaved[i * total_channels + ch_idx];
+        e += s * s;
+    }
+    return e / (float)num_frames;
+}
+
+/* ──────────────────── Band helpers ──────────────────── */
+
 #define NUM_BANDS 4
 static const uint32_t band_start[] = { 1, 6, 21, 85 };
 static const uint32_t band_end[]   = { 6, 21, 85, 256 };
 #define FFT_SIZE 512
 
+/* ──────────────────── Channel angle map ──────────────────── 
+ *
+ *  Standard 7.1 channel order (WAVEFORMATEXTENSIBLE):
+ *    0: Front Left     (FL)   – 315° (i.e. -45°)
+ *    1: Front Right    (FR)   –  45°
+ *    2: Front Center   (FC)   –   0°
+ *    3: LFE            (Sub)  – omitted (non-directional)
+ *    4: Back Left      (BL)   – 225° (i.e. -135°)
+ *    5: Back Right     (BR)   – 135°
+ *    6: Side Left      (SL)   – 270° (i.e. -90°)
+ *    7: Side Right     (SR)   –  90°
+ *
+ *  0° = directly ahead, clockwise positive.
+ */
+
+/* Angles in degrees for each channel index (for 8-channel 7.1 layout). */
+static const float ch_angle_8[] = {
+    315.0f,  /*  0  FL  */
+     45.0f,  /*  1  FR  */
+      0.0f,  /*  2  FC  */
+     -1.0f,  /*  3  LFE – skip */
+    225.0f,  /*  4  BL  */
+    135.0f,  /*  5  BR  */
+    270.0f,  /*  6  SL  */
+     90.0f,  /*  7  SR  */
+};
+
+/* 5.1 layout (6 channels) */
+static const float ch_angle_6[] = {
+    315.0f,  /*  0  FL  */
+     45.0f,  /*  1  FR  */
+      0.0f,  /*  2  FC  */
+     -1.0f,  /*  3  LFE – skip */
+    225.0f,  /*  4  BL / SL  */
+    135.0f,  /*  5  BR / SR  */
+};
+
+/* ──────────────────── Main DSP entry ──────────────────── */
+
 SpatialData_t OD_DSP_ProcessBuffer(const AudioBuffer_t* buffer, float sensitivity, float separation) {
     SpatialData_t result;
     memset(&result, 0, sizeof(SpatialData_t));
-    
+
     if (buffer == NULL || buffer->buffer == NULL || buffer->num_samples == 0 || buffer->channels < 1) {
-        return result; 
+        return result;
     }
 
     uint32_t n = buffer->num_samples;
     if (n > FFT_SIZE) n = FFT_SIZE;
+    uint32_t ch = buffer->channels;
 
+    /* ── Build a mono + left/right downmix for the classifier ── */
     float left[FFT_SIZE];
     float right[FFT_SIZE];
     memset(left, 0, sizeof(left));
     memset(right, 0, sizeof(right));
 
-    
     for (uint32_t i = 0; i < n; i++) {
-        if (buffer->channels == 1) {
+        if (ch == 1) {
             left[i] = buffer->buffer[i];
             right[i] = buffer->buffer[i];
-        } else if (buffer->channels == 2) {
-            left[i] = buffer->buffer[i * 2 + 0];
+        } else if (ch == 2) {
+            left[i]  = buffer->buffer[i * 2 + 0];
             right[i] = buffer->buffer[i * 2 + 1];
-        } else if (buffer->channels >= 6) {
-            
-            float l = buffer->buffer[i * buffer->channels + 0];
-            float r = buffer->buffer[i * buffer->channels + 1];
-            float c = buffer->buffer[i * buffer->channels + 2];
-            float sl = buffer->buffer[i * buffer->channels + 4];
-            float sr = buffer->buffer[i * buffer->channels + 5];
-            
-            left[i] = l + (c * 0.707f) + sl;
-            right[i] = r + (c * 0.707f) + sr;
-            
-            if (buffer->channels >= 8) {
-                float bl = buffer->buffer[i * buffer->channels + 6];
-                float br = buffer->buffer[i * buffer->channels + 7];
-                left[i] += bl;
-                right[i] += br;
-            }
         } else {
-            
-            left[i] = buffer->buffer[i * buffer->channels + 0];
-            right[i] = buffer->buffer[i * buffer->channels + 1];
+            /* For multi-channel: simple stereo downmix for the classifier only */
+            float l = 0.0f, r = 0.0f;
+            for (uint32_t c = 0; c < ch; c++) {
+                float s = buffer->buffer[i * ch + c];
+                const float *angle_table = (ch >= 8) ? ch_angle_8 : ch_angle_6;
+                if (c < ((ch >= 8) ? 8u : 6u)) {
+                    float a = angle_table[c];
+                    if (a < 0.0f) continue; /* LFE */
+                    float rad = a * PI / 180.0f;
+                    /* negative sin → left contribution, positive sin → right */
+                    float lr_weight = sinf(rad);
+                    if (lr_weight < 0.0f)
+                        l += s * (-lr_weight);
+                    else
+                        r += s * lr_weight;
+                    /* center (sin≈0) contributes equally */
+                    if (fabsf(lr_weight) < 0.15f) {
+                        l += s * 0.707f;
+                        r += s * 0.707f;
+                    }
+                }
+            }
+            left[i]  = l;
+            right[i] = r;
         }
     }
 
+    /* Run classifier on the downmixed stereo */
     SpectralFeatures_t features = OD_Classifier_ExtractFeatures(left, right, n, buffer->sample_rate);
     ClassResult_t class_result = OD_Classifier_Classify(&features);
 
@@ -86,23 +139,127 @@ SpatialData_t OD_DSP_ProcessBuffer(const AudioBuffer_t* buffer, float sensitivit
     float max_thresh = 0.5f;
     float threshold = max_thresh * powf(min_thresh / max_thresh, sensitivity);
 
-    
+    /* ── Diagnostic logging ── */
     static float peak_energy = 0;
     static int peak_counter = 0;
     float current_max = 0;
-    for(uint32_t i=0; i<n; i++) {
+    for (uint32_t i = 0; i < n; i++) {
         float e = left[i]*left[i] + right[i]*right[i];
-        if(e > current_max) current_max = e;
+        if (e > current_max) current_max = e;
     }
     if (current_max > peak_energy) peak_energy = current_max;
     if (++peak_counter >= 100) {
         if (peak_energy > 0) {
-            printf("[DSP Windows] Peak Energy: %.6f, Threshold: %.6f, Entities: %d\n", peak_energy, threshold, result.entity_count);
+            printf("[DSP Windows] Peak Energy: %.6f, Threshold: %.6f, Ch: %u\n", peak_energy, threshold, ch);
             fflush(stdout);
         }
         peak_energy = 0;
         peak_counter = 0;
     }
+
+    /* ────────────────────────────────────────────────────────
+     *  MULTI-CHANNEL SPATIAL PROCESSING (>= 6 channels)
+     *
+     *  For each frequency band we compute the energy in
+     *  every directional channel and sum their unit-vectors
+     *  weighted by energy.  The resulting vector gives us
+     *  azimuth (full 360°) and a distance proxy.
+     * ──────────────────────────────────────────────────────── */
+
+    if (ch >= 6) {
+        /* Extract per-channel mono streams (skip LFE at index 3) */
+        uint32_t dir_count = (ch >= 8) ? 8 : 6;
+        const float *angle_table = (ch >= 8) ? ch_angle_8 : ch_angle_6;
+
+        float ch_mono[8][FFT_SIZE];
+        memset(ch_mono, 0, sizeof(ch_mono));
+        for (uint32_t c = 0; c < dir_count; c++) {
+            if (angle_table[c] < 0.0f) continue; /* LFE */
+            for (uint32_t i = 0; i < n; i++) {
+                ch_mono[c][i] = buffer->buffer[i * ch + c];
+            }
+        }
+
+        for (int band = 0; band < NUM_BANDS && result.entity_count < 10; band++) {
+            /* Energy per channel in this band */
+            float ch_energy[8];
+            memset(ch_energy, 0, sizeof(ch_energy));
+            float total_energy = 0.0f;
+
+            uint32_t step = (band_end[band] - band_start[band]);
+            if (step < 1) step = 1;
+            if (step > 8) step = step / 4;
+
+            for (uint32_t c = 0; c < dir_count; c++) {
+                if (angle_table[c] < 0.0f) continue; /* LFE */
+                for (uint32_t bin = band_start[band]; bin < band_end[band]; bin += (step > 1 ? step : 1)) {
+                    ch_energy[c] += dft_bin_energy(ch_mono[c], n, bin, FFT_SIZE);
+                }
+                total_energy += ch_energy[c];
+            }
+
+            if (total_energy < threshold) continue;
+
+            /* Vector sum: weight each channel's unit-vector by its energy */
+            float vx = 0.0f, vy = 0.0f;
+            for (uint32_t c = 0; c < dir_count; c++) {
+                if (angle_table[c] < 0.0f) continue;
+                float rad = angle_table[c] * PI / 180.0f;
+                vx += sinf(rad) * ch_energy[c];
+                vy += cosf(rad) * ch_energy[c];
+            }
+
+            /* Azimuth from the vector */
+            float azimuth = atan2f(vx, vy) * 180.0f / PI;
+            if (azimuth < 0.0f) azimuth += 360.0f;
+
+            /* Distance: louder → closer */
+            float avg = total_energy / (float)(dir_count - 1); /* exclude LFE count */
+            float distance = 1.0f / (1.0f + sqrtf(avg) * 15.0f);
+            if (distance < 0.1f) distance = 0.1f;
+            if (distance > 0.95f) distance = 0.95f;
+
+            /* Confidence: how directional is the sound?
+             * (magnitude of resultant vector / total energy) */
+            float mag = sqrtf(vx * vx + vy * vy);
+            float confidence = (total_energy > 0.0f) ? (mag / total_energy) : 0.0f;
+            if (confidence > 1.0f) confidence = 1.0f;
+
+            /* Merge nearby entities */
+            SoundEntity_t* entity = &result.entities[result.entity_count];
+            entity->azimuth_angle = azimuth;
+            entity->distance = distance;
+            entity->confidence = confidence;
+            entity->signature_match_id = band;
+            entity->sound_type = class_result.type;
+
+            bool merged = false;
+            for (int e = 0; e < result.entity_count; e++) {
+                float diff = result.entities[e].azimuth_angle - azimuth;
+                if (diff > 180.0f) diff -= 360.0f;
+                if (diff < -180.0f) diff += 360.0f;
+
+                if (fabsf(diff) < separation) {
+                    result.entities[e].azimuth_angle = (result.entities[e].azimuth_angle + azimuth) * 0.5f;
+                    if (distance < result.entities[e].distance)
+                        result.entities[e].distance = distance;
+                    merged = true;
+                    break;
+                }
+            }
+
+            if (!merged) {
+                result.entity_count++;
+            }
+        }
+
+        return result;
+    }
+
+    /* ────────────────────────────────────────────────────────
+     *  STEREO / MONO FALLBACK  (channels < 6)
+     *  Original left/right pan logic.
+     * ──────────────────────────────────────────────────────── */
 
     for (int band = 0; band < NUM_BANDS && result.entity_count < 10; band++) {
         float energy_l = 0.0f;
@@ -110,8 +267,8 @@ SpatialData_t OD_DSP_ProcessBuffer(const AudioBuffer_t* buffer, float sensitivit
 
         uint32_t step = (band_end[band] - band_start[band]);
         if (step < 1) step = 1;
-        if (step > 8) step = step / 4; 
-        
+        if (step > 8) step = step / 4;
+
         for (uint32_t bin = band_start[band]; bin < band_end[band]; bin += (step > 1 ? step : 1)) {
             energy_l += dft_bin_energy(left, n, bin, FFT_SIZE);
             energy_r += dft_bin_energy(right, n, bin, FFT_SIZE);
@@ -159,7 +316,7 @@ SpatialData_t OD_DSP_ProcessBuffer(const AudioBuffer_t* buffer, float sensitivit
             result.entity_count++;
         }
     }
-    
+
     return result;
 }
 

@@ -112,7 +112,6 @@ static DWORD WINAPI CaptureThreadProc(LPVOID lpParam) {
 }
 
 int OD_Capture_Init(int channels) {
-    (void)channels;
     InitializeCriticalSection(&buffer_cs);
     HRESULT hr;
     
@@ -130,6 +129,69 @@ int OD_Capture_Init(int channels) {
     
     hr = pAudioClient->lpVtbl->GetMixFormat(pAudioClient, &pFormat);
     if (FAILED(hr)) return hr;
+
+    printf("[Capture Windows] System Mix Format: %u channels, %u Hz, %u bits/sample\n",
+           pFormat->nChannels, pFormat->nSamplesPerSec, pFormat->wBitsPerSample);
+
+    /* If the user requested more channels than the mix format provides,
+     * try to modify the format to request multi-channel capture.
+     * This works when the Windows audio endpoint is configured for 7.1. */
+    if (channels > (int)pFormat->nChannels && pFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+        WAVEFORMATEXTENSIBLE *pEx = (WAVEFORMATEXTENSIBLE*)pFormat;
+        uint32_t requested = (uint32_t)channels;
+
+        /* Save original values */
+        uint32_t orig_ch = pFormat->nChannels;
+
+        /* Build the new channel mask */
+        DWORD mask_71 = 0x63F; /* FL|FR|FC|LFE|BL|BR|SL|SR */
+        DWORD mask_51 = 0x3F;  /* FL|FR|FC|LFE|BL|BR */
+
+        if (requested >= 8) {
+            pFormat->nChannels = 8;
+            pEx->dwChannelMask = mask_71;
+        } else if (requested >= 6) {
+            pFormat->nChannels = 6;
+            pEx->dwChannelMask = mask_51;
+        }
+
+        /* Recalculate block align and avg bytes */
+        pFormat->nBlockAlign = pFormat->nChannels * (pFormat->wBitsPerSample / 8);
+        pFormat->nAvgBytesPerSec = pFormat->nSamplesPerSec * pFormat->nBlockAlign;
+
+        /* Check if the modified format is supported */
+        WAVEFORMATEX *pClosest = NULL;
+        hr = pAudioClient->lpVtbl->IsFormatSupported(pAudioClient, AUDCLNT_SHAREMODE_SHARED, pFormat, &pClosest);
+
+        if (hr == S_OK) {
+            printf("[Capture Windows] Multi-channel format (%u ch) accepted!\n", pFormat->nChannels);
+        } else if (hr == S_FALSE && pClosest != NULL) {
+            /* Windows suggested a closest match - use that instead */
+            printf("[Capture Windows] Requested %u ch, Windows suggests %u ch\n",
+                   pFormat->nChannels, pClosest->nChannels);
+            CoTaskMemFree(pFormat);
+            pFormat = pClosest;
+        } else {
+            /* Revert to original */
+            printf("[Capture Windows] WARNING: %u-ch format not supported (hr=0x%08lX), falling back to %u ch\n",
+                   pFormat->nChannels, (unsigned long)hr, orig_ch);
+            pFormat->nChannels = (WORD)orig_ch;
+            pFormat->nBlockAlign = pFormat->nChannels * (pFormat->wBitsPerSample / 8);
+            pFormat->nAvgBytesPerSec = pFormat->nSamplesPerSec * pFormat->nBlockAlign;
+            if (pFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+                WAVEFORMATEXTENSIBLE *pEx2 = (WAVEFORMATEXTENSIBLE*)pFormat;
+                if (orig_ch == 2) pEx2->dwChannelMask = 0x3; /* FL|FR */
+            }
+        }
+    }
+
+    printf("[Capture Windows] Final Format: %u channels, %u Hz, %u bits/sample\n",
+           pFormat->nChannels, pFormat->nSamplesPerSec, pFormat->wBitsPerSample);
+    if (pFormat->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+        WAVEFORMATEXTENSIBLE *pEx = (WAVEFORMATEXTENSIBLE*)pFormat;
+        printf("[Capture Windows] Channel mask: 0x%08lX\n", (unsigned long)pEx->dwChannelMask);
+    }
+    fflush(stdout);
 
     hr = pAudioClient->lpVtbl->Initialize(pAudioClient, AUDCLNT_SHAREMODE_SHARED,
                                           AUDCLNT_STREAMFLAGS_LOOPBACK, 0, 0, pFormat, NULL);
