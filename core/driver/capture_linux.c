@@ -80,11 +80,13 @@ int OD_Capture_Init(int channels) {
 
     
     global_data.channels = channels;
+    printf("[Capture Linux] Mapping PipeWire stream for %d channels, 48000Hz\n", channels);
     params[0] = spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat,
         &SPA_AUDIO_INFO_RAW_INIT(
             .format = SPA_AUDIO_FORMAT_F32,
             .rate = 48000,
             .channels = channels));
+    fflush(stdout);
 
     pw_stream_connect(global_data.stream,
                       PW_DIRECTION_INPUT,
